@@ -1,0 +1,20 @@
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Data and output folders 
+/data
+/from_Akash
+/IFMR
+/Montreal_WD_models
+/MS_lifetime_padova
+/MS_lifetime_padova_new_metgrid
+/output
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
