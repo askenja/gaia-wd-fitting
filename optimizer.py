@@ -178,6 +178,12 @@ def mcmc_runner(sampler,pos,ndim,n_max):
                         converged = np.all(tau * 100 < sampler.iteration)
                         converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
 
+                    if sampler.iteration != 0 and sampler.iteration % 1000 == 0:
+                        print('Iteration '+str(sampler.iteration)+':\t',
+                              'tau = '+str(int(round(tau,0))),
+                              ' N/50 = '+str(int(round(sampler.iteration/50,0)))
+                              )
+
                 if converged and count == 0:
                     print('Procedure converged, iteration =', sampler.iteration)
                     count += 1

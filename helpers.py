@@ -90,23 +90,25 @@ class MCMCLogger:
 
     def get_run_stats(self,sampler,autocorr,verbose=True):
 
-        try:
-            af = sampler.acceptance_fraction
-            afm = round(np.nanmean(af),2)
-            if verbose:
-                print('Acceptance_fraction = ', afm)
-        except:
-            afm = np.nan
-            print('Acceptance_fraction could not be estimated')
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            try:
+                af = sampler.acceptance_fraction
+                afm = round(np.nanmean(af),2)
+                if verbose:
+                    print('Acceptance_fraction = ', afm)
+            except:
+                afm = np.nan
+                print('Acceptance_fraction could not be estimated')
 
-        try:
-            tau = sampler.get_autocorr_time(tol=0)
-            taum = int(round(np.nanmean(tau),0))
-            if verbose:
-                print('Integrated autocorrelation time = ', taum, '\n')
-        except:
-            print('Integrated autocorrelation time could not be estimated\n')
-            taum = np.nan
+            try:
+                tau = sampler.get_autocorr_time(tol=0)
+                taum = int(round(np.nanmean(tau),0))
+                if verbose:
+                    print('Integrated autocorrelation time = ', taum, '\n')
+            except:
+                print('Integrated autocorrelation time could not be estimated\n')
+                taum = np.nan
 
         np.savetxt(os.path.join(self.dir_out,'autocorr_time.txt'),\
                    np.stack((np.arange(len(autocorr))*100,

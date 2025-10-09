@@ -35,10 +35,10 @@ age_ms_param_file = 'MS_lifetime_padova_new_metgrid/analysis/'+\
                     'fit_v1_Mbr1.18/tau_ms_params_v1_Mbr1.18.txt' # Parameters for MS lifetime fits
 # MCMC setup
 mode_init = 'blob'          # Blob arournd means or random
-blob_f_sig = 0.5            # Defines blob size
+blob_f_sig = 0.1            # Defines blob size
 n_max = 10                  # Max number of iterations
-dir_out = 'output/mcmc'     # Dir for output
-save_log = True             # Save all tested parameter combinations
+dir_out = 'output/mcmc1'     # Dir for output
+save_log = False             # Save all tested parameter combinations
 # ---------------------------------------------------------------------
 
 # %%
