@@ -58,6 +58,27 @@ def log_likelihood_poisson(D, M, eps_clip=1e-12):
     return val                    # equals -0.5*C up to a constant
 
 
+def loglike_masked_avg_logchi2(D, M, eps=0.5, min_count=0.1, var_floor=0.1):
+    # keep bins with signal in either data or model
+    mask = (D >= min_count) | (M >= min_count)
+    if not np.any(mask):
+        return -np.inf   # or a benign value
+
+    Dp = D[mask] + eps
+    Mp = np.clip(M[mask] + eps, 1e-12, None)
+
+    r = np.log10(Dp) - np.log10(Mp)
+
+    var_y = M[mask] / ((np.log(10)**2) * (Mp**2))
+    var_y = np.maximum(var_y, var_floor)
+
+    per_bin = r*r / var_y
+
+    # average per informative bin
+    logL = -0.5 * np.mean(per_bin)
+    return logL
+
+
 def likelihood(params,p,a,inp,pop_tabs_ref,
                hess_ref,mag_range, mag_step, mag_smooth,
                sfr_handler,imf_handler,pop_handler,par_handler,constructor,**kwargs
@@ -91,7 +112,8 @@ def likelihood(params,p,a,inp,pop_tabs_ref,
     #print('Modeled Hess')
     #prob = chi2(hess_ref,np.log10(hess+1))
     #prob = log_likelihood_counts(hess_ref, hess, eps=0.5, eps_clip=1e-12)
-    prob = log_likelihood_poisson(hess_ref, hess, eps_clip=1e-12)
+    #prob = log_likelihood_poisson(hess_ref, hess, eps_clip=1e-12)
+    prob = loglike_masked_avg_logchi2(hess_ref, hess)
     #print('Calculated likelihood: ',prob)
 
     logfile = kwargs.get("logfile",None)
