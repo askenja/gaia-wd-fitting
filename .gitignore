@@ -9,10 +9,12 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data and output folders 
+/completeness
 /data
 /from_Akash
 /IFMR
 /Montreal_WD_models
+/LPCODE_WD_models
 /MS_lifetime_padova
 /MS_lifetime_padova_new_metgrid
 /output

@@ -25,7 +25,7 @@ nprocess	4			Number of CPU cores to be used
 # ===================================================================================================
 # Solar coordinates and velocity
 # ===================================================================================================
-Rsun		8.2	kpc		Solar Galactocentric distance 
+Rsun		8.275	kpc		Solar Galactocentric distance  
 zsun		20	pc		Solar height above the Galactic plane 
 
 
@@ -33,7 +33,7 @@ zsun		20	pc		Solar height above the Galactic plane
 # Rz-grid and radial profiles
 # ===================================================================================================
 zmax		2000	pc		Max height z 
-dz		2	pc		Vertical resolution 
+dz		5	pc		Vertical resolution 
 
 
 # ===================================================================================================

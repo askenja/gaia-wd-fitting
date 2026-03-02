@@ -247,5 +247,3 @@ def g_rp_synth(bp_rp):
     synth_val = interpolate.splev(bp_rp_in_range, _tck, der=0, ext=0)
     
     return synth_val
-
-
