@@ -1,0 +1,85 @@
+===================
+Topcat session
+===================
+
+Table 1: 1kpc_tot.parquet, 19 710 058 stars
+---------------------------------------------
+This is the total preselected sample obtained from the ADQL query:
+
+SELECT *
+FROM (
+    SELECT 
+        source_id, ra, dec, parallax, parallax_error,
+        astrometric_excess_noise, astrometric_excess_noise_sig,
+        astrometric_chi2_al, astrometric_n_good_obs_al,
+        ipd_gof_harmonic_amplitude,
+        phot_bp_mean_flux_over_error, phot_rp_mean_flux_over_error,
+        phot_g_mean_mag, phot_bp_mean_mag, phot_rp_mean_mag,
+        phot_bp_rp_excess_factor,
+        l, b,
+        1000/parallax AS d,
+        (1000/parallax)*COS(RADIANS(b))*COS(RADIANS(l)) - 8275 AS X,
+        (1000/parallax)*COS(RADIANS(b))*SIN(RADIANS(l)) AS Y,
+        (1000/parallax)*SIN(RADIANS(b)) + 20 AS Z
+    FROM gaiadr3.gaia_source
+    WHERE 
+        parallax > 1.0
+) AS q
+WHERE 
+    SQRT(X*X + Y*Y) > 8125
+    AND SQRT(X*X + Y*Y) < 8425
+    AND ABS(Z) < 150
+
+Subsets:
+_3	phot0		12605374	64% 	phot_g_mean_mag>2&&phot_g_mean_mag<20.5
+_4	astr1		7981600		40% 	astrometric_excess_noise<1&&phot_g_mean_mag>2&&phot_g_mean_mag<20.5
+_5	astr2		9755252		49% 	sqrt(astrometric_chi2_al/(astrometric_n_good_obs_al - 5)) < 1.2*max(1,exp(-0.2*(phot_g_mean_mag - 19.5)))&&phot_g_mean_mag>2&&phot_g_mean_mag<20.5
+_6	astrphot1	4744001		24% 	astrometric_excess_noise<1&&phot_g_mean_mag>2&&phot_g_mean_mag<20.5&&phot_rp_mean_flux_over_error>20&&phot_bp_mean_flux_over_error>20&&phot_g_mean_flux_over_error>50
+_7	astrphot2	4684448		24% 	sqrt(astrometric_chi2_al/(astrometric_n_good_obs_al - 5)) < 1.2*max(1,exp(-0.2*(phot_g_mean_mag - 19.5)))&&phot_g_mean_mag>2&&phot_g_mean_mag<20.5&&phot_rp_mean_flux_over_error>20&&phot_bp_mean_flux_over_error>20&&phot_g_mean_flux_over_error>50
+
+Explanation:
+- phot0: Cut on phot_g_mean_mag that removes too bright and too faint stars leaving the range where I assume data to be complete. 
+Chosen limits for phot_g_mean_mag, 2 and 20.5 mag, already correspond to the distance completeness ranges calculated for my modeled volume. 
+This cut could have been added to the ADQL query. 
+- astr1: [On top of phot_g_mean_mag cut] Artifacts removed with astrometric_excess_noise < 1 (mostly stars between MS and WD). Could be also added to the query.
+- astr2: [On top of phot_g_mean_mag cut] Artifacts removed with sqrt(chi2/(n - 5)) < 1.2*max(1,exp(-0.2*(G-19.5))), chi2=astrometric_chi2_al, n=astrometric_n_good_obs_al, G=phot_g_mean_mag
+This is a comparison cut for astr1 to check whether it removes artifacts better. Mentioned in Sect. 2.1 of GC/Babusiaux+18.
+But it leaves significantly more stars in the sample such that star counts become unrealistically large. So I stick to astr1.
+- astrphot1: [On top of astr1] Removed photometric low-quality data - artifacts and binaries / variable stars
+- astrphot2: [On top of astr2] Removed photometric low-quality data - artifacts and binaries / variable stars. Only for comparison. 
+
+
+Table 2: S0 (astr1)
+---------------------------------------------
+This sample gives me star counts in my volume  that I assume to be reliable. 
+But it includes binaries and variables that I do not explicitly model on the CMD. 
+I use it to compare the subpopulations' overall star counts. 
+
+Subsets:
+_3	WD	110661	1% 	M_G0_lallement > 6*G_RP0_lallement_sm + 9.3
+_4	UMS	452744	6% 	M_G0_lallement < 4.3 && M_G0_lallement > 35*G_RP0_lallement_sm - 15 
+_5	G	84642	1% 	M_G0_lallement  < 4.3 && M_G0_lallement  <= 35*G_RP0_lallement_sm - 15 
+_6	MS	2170316	27% 	M_G0_lallement  >= 4.3 && M_G0_lallement  < 8.5 && M_G0_lallement <= 6*G_RP0_lallement_sm + 9.3
+_7	LMS	4884400	61% 	M_G0_lallement >= 8.5 && M_G0_lallement <= 6*G_RP0_lallement_sm + 9.3
+
+Separation into populations: 
+- WD: y > 6*x + 9.3 
+- UMS: y < 4.3 & y > 35*x - 15 
+- G:  y < 4.3 & y <= 35*x - 15 
+- MS: y >= 4.3 & y < 8.5 & y <= 6*x + 9.3
+- LMS: y >= 8.5 & y <= 6*x + 9.3
+
+
+Table 3: S1 (astrphot1)
+---------------------------------------------
+This is a photometrically clean subsample of astr1 without binaries and variable stars. 
+I use it to compare the normalized subpopulations' color and magnitude distributions. 
+
+Subsets:
+_3	WD	58255	1% 	M_G0_lallement > 6*G_RP0_lallement_sm + 9.3
+_4	UMS	452655	10% 	M_G0_lallement < 4.3 && M_G0_lallement > 35*G_RP0_lallement_sm - 15
+_5	G	83729	2% 	M_G0_lallement  < 4.3 && M_G0_lallement  <= 35*G_RP0_lallement_sm - 15 
+_6	MS	2095656	44% 	M_G0_lallement  >= 4.3 && M_G0_lallement  < 8.5 && M_G0_lallement <= 6*G_RP0_lallement_sm + 9.3
+_7	LMS	2053706	43% 	M_G0_lallement >= 8.5 && M_G0_lallement <= 6*G_RP0_lallement_sm + 9.3
+
+
