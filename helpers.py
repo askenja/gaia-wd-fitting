@@ -457,7 +457,8 @@ class ParHandler:
             The hierarchical parameter dictionary, filled with the input parameter values.
         """
         if len(theta) != len(self.flat_param_list):
-            raise ValueError('Length of parameter list does not match the number of parameters in structured dict!')
+            print(theta)
+            raise ValueError('Length of parameter list does not match the number of parameters in structured dict!\nlen(theta)=%d, len(flat_param_list)=%d' % (len(theta), len(self.flat_param_list)))
 
         i = 0
         for group, subdict in self.param_struct.items():
@@ -1461,8 +1462,10 @@ class SFRHandler():
             pars['dtp'],
             g=self.inp['gd0']
             ) 
-            
-        return out
+        
+        SFRd0, NSFRd0, Fp0 = out[0], out[1], out[2]
+
+        return (SFRd0, NSFRd0, Fp0)
     
 
     def sfrt_mcmc(self,**kwargs):
@@ -1529,7 +1532,7 @@ class SFRHandler():
 
         # Update thin-disk SFR
         sfrd_out = self.sfrd_mcmc(**kwargs['d'])
-        SFRd0, NSFRd0 = sfrd_out[0], sfrd_out[1] 
+        SFRd0, NSFRd0, Fp0 = sfrd_out[0], sfrd_out[1], sfrd_out[2]
 
         # Optional: update thick-disk SFR
         if 't' in kwargs:
@@ -1542,8 +1545,8 @@ class SFRHandler():
         NSFRtot0 = SFRtot0/np.mean(SFRtot0)
 
         # Create output
-        names = ['SFRd0', 'NSFRd0', 'SFRtot0', 'NSFRtot0']
-        tables = [SFRd0, NSFRd0, SFRtot0, NSFRtot0]
+        names = ['SFRd0', 'NSFRd0', 'SFRtot0', 'NSFRtot0', 'Fp0']
+        tables = [SFRd0, NSFRd0, SFRtot0, NSFRtot0, Fp0]
 
         if 't' in kwargs:
             names += ['SFRt0','NSFRt0']
@@ -2974,8 +2977,14 @@ class PopHandler:
 def extract_model_tables(out,inp):
     """Create a collection of modeled quantites from the JJ-model input dict
     and an output of the local_run() function."""
-    return {'Fi':out['phi'],'Fp':inp['Fp0'],'AVR':out['avr'],
-            'Hd':out['hd'],'Hdp':out['hdp'],'Ht':out['ht'],'Hsh':out['hsh']}
+    output = {'Fi':out['phi'],'AVR':out['avr'],
+              'Hd':out['hd'],'Ht':out['ht'],'Hsh':out['hsh']}
+    # Will only work when SFR peaks have special kinematics
+    if 'Fp0' in inp.keys():
+        output['Fp'] = inp['Fp0']
+    if 'hdp' in out.keys():
+        output['Hdp'] = out['hdp']
+    return output
         
 
 def fdb_parabola(Teff):

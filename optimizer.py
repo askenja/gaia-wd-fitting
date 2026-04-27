@@ -61,11 +61,15 @@ def prior_tot(theta, mu, sigma, **kwargs):
 
     # get the location of alpha_cool index
     dcool_idx = kwargs.get('dcool_idx',None)
-
     if dcool_idx is not None and theta[dcool_idx] < 0: 
         # when it's negative, it will fall out of the range, because my mu=0
         # ugly way of implementing this...
         lower[dcool_idx] = mu[dcool_idx] 
+
+    # get the location of td1 index
+    td1_idx = kwargs.get('td1_idx',None)
+    if td1_idx is not None and theta[td1_idx] < 0: 
+        lower[td1_idx] = 0
 
     return log_prior_gaussian(theta, mu, sigma, lower=lower, upper=mu+3*sigma)
 
@@ -281,7 +285,6 @@ class HessProjLikelihood():
         l_shape_cdf = self.lproj_shape(hessproj_model,pop,proj_type='cdf')
         l_shape_mdf = self.lproj_shape(hessproj_model,pop,proj_type='mdf')
         l_count = self.lproj_count(hessproj_model,pop)
-
         return l_shape_cdf[0] + l_shape_mdf[0] + l_count[0]
     
 
@@ -425,14 +428,9 @@ def likelihood(
     # Calculate likelihood
     prob = l_handler.lproj_tot(proj)
     #print('Calculated likelihood: ',prob)
-
-    # Save output if needed
-    logfile = kwargs.get("logfile",None)
-    if logfile:
-        with open(logfile,"a") as lf:
-            lf.write("".join(['{:<10}'.format(round(par,5)) for par in params]) + f'{round(prob,5)}\n')
+    
     #print('---Leaving likelihood func---')
-
+    
     return prob
 
 
@@ -515,12 +513,15 @@ def posterior(
         Prior value. 
     """
     #print('---Entered posterior func---')
-    
-    # Find position of the alpha_cool parameter to give it to the prior func
+
+    # Find position of the alpha_cool and td1 parameters to give it to the prior func
     prior_kwargs = {}
     if 'alpha_cool' in par_handler.flat_param_list:
         prior_kwargs['dcool_idx'] =\
             np.where(np.array(par_handler.flat_param_list)=='alpha_cool')[0][0]
+    if 'td1' in par_handler.flat_param_list:
+        prior_kwargs['td1_idx'] =\
+            np.where(np.array(par_handler.flat_param_list)=='td1')[0][0]
 
     # Calculate prior and check whether parameters are in allowed intervals
     log_prior = prior_tot(params,param_mean,param_sigma,**prior_kwargs)
@@ -547,6 +548,11 @@ def posterior(
         vz_mag=vz_mag,
         **kwargs
         )
+    
+    logfile = kwargs.get("logfile",None)
+    if logfile:
+        with open(logfile,"a") as lf:
+            lf.write("".join(['{:<10}'.format(round(par,5)) for par in params]) + '{:<10}'.format(round(log_likelihood,5)) + '{:<10}'.format(round(log_prior,5)) + '\n')
 
     return log_prior + log_likelihood, (log_prior,)
 
@@ -581,17 +587,25 @@ def initialize_params(mode,nwalkers,ndim,**kwargs):
     if 'alpha_cool' in p_names:
         dcool_idx = np.where(p_names=='alpha_cool')[0][0]
 
+    td1_idx = None
+    if 'td1' in p_names:
+        td1_idx = np.where(p_names=='td1')[0][0]
+
     if mode=='blob':
         f_sig = kwargs.get('f_sig',1e-4)
         pos = p_mean + f_sig*p_sigma*np.random.randn(nwalkers,ndim)
         if dcool_idx is not None:
             pos[:,dcool_idx] = np.abs(pos[:,dcool_idx])
+        if td1_idx is not None:
+            pos[:,td1_idx] = np.abs(pos[:,td1_idx])
 
     if mode=='random':
         pos = p_mean + 3*p_sigma*(2*np.random.rand(nwalkers,ndim)-1)
         lower = p_mean - 3*p_sigma
         if dcool_idx is not None:
-            lower[dcool_idx] = p_mean
+            lower[dcool_idx] = p_mean[dcool_idx]
+        if td1_idx is not None:
+            lower[td1_idx] = p_mean[td1_idx]
         pos = np.clip(pos, lower, p_mean + 3*p_sigma)
         
     return pos

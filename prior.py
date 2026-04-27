@@ -34,6 +34,10 @@ prior = {
         'm': 0.0, # Default is NO cooling slowdown
         's': 0.1  # Dispersion of the slowdown of cooling assumed to be 10%
         }, 
+    'td1': {
+        'm': 0, # Sysoliatina and Just (2021), SJ21
+        's': 0.3  # allows td1 > 0 
+        },
     'td2': {
         'm': 7.8, # Sysoliatina and Just (2021), SJ21
         's': 2.59  # allows td2 cloze to 0 -> approx. const SFR can be tested! 
