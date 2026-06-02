@@ -1,6 +1,7 @@
 
 import numpy as np
 import warnings
+import emcee
 from jjmodel.mwdisk import local_run
 from helpers import extract_model_tables
 
@@ -579,7 +580,7 @@ def initialize_params(mode,nwalkers,ndim,**kwargs):
         Initial positions of walkers. 
     """
 
-    p_mean = np.array(kwargs['params_mean'])
+    p_start = np.array(kwargs['params_mean'])
     p_sigma = np.array(kwargs['params_sigma'])
     p_names = np.array(kwargs['labels'])
 
@@ -592,24 +593,44 @@ def initialize_params(mode,nwalkers,ndim,**kwargs):
         td1_idx = np.where(p_names=='td1')[0][0]
 
     if mode=='blob':
-        f_sig = kwargs.get('f_sig',1e-4)
-        pos = p_mean + f_sig*p_sigma*np.random.randn(nwalkers,ndim)
+        f_sig = kwargs.get('blob_f_sig',1e-4)
+        pos = p_start + f_sig*p_sigma*np.random.randn(nwalkers,ndim)
         if dcool_idx is not None:
             pos[:,dcool_idx] = np.abs(pos[:,dcool_idx])
         if td1_idx is not None:
             pos[:,td1_idx] = np.abs(pos[:,td1_idx])
 
     if mode=='random':
-        pos = p_mean + 3*p_sigma*(2*np.random.rand(nwalkers,ndim)-1)
-        lower = p_mean - 3*p_sigma
-        if dcool_idx is not None:
-            lower[dcool_idx] = p_mean[dcool_idx]
-        if td1_idx is not None:
-            lower[td1_idx] = p_mean[td1_idx]
-        pos = np.clip(pos, lower, p_mean + 3*p_sigma)
+        f_sig = kwargs.get('blob_f_sig',3)
+
+        pos = np.zeros((nwalkers,ndim))
+        for i in range(ndim):
+            pos[:,i] = p_start[i] + f_sig*p_sigma[i]*(2*np.random.rand(nwalkers)-1)
+            if (dcool_idx is not None) and (i == dcool_idx):
+                pos[:,i] = p_start[i] + f_sig*p_sigma[i]*np.random.rand(nwalkers)
+            if (td1_idx is not None) and (i == td1_idx):
+                pos[:,i] = p_start[i] + f_sig*p_sigma[i]*np.random.rand(nwalkers)
         
     return pos
     
+
+def reinitialize_chains(sampler,ndim):
+    logp = sampler.get_log_prob()[-1]
+
+    bad = logp < np.percentile(logp,10)
+
+    print("Reinitialising",np.sum(bad),"walkers")
+    
+    # Get old coords
+    coords = sampler.get_last_sample().coords.copy()
+    
+    # Add small perturbation
+    coords[bad] += (1e-3 * np.random.randn(np.sum(bad),ndim))
+
+    new_state = emcee.State(coords=coords)
+
+    return new_state
+
 
 def mcmc_runner(sampler,pos,ndim,n_max,iter_step=100):
     r""" 
@@ -644,17 +665,17 @@ def mcmc_runner(sampler,pos,ndim,n_max,iter_step=100):
     tau = np.inf
     old_tau = np.inf
     converged = False
-    final_state = None
+    #final_state = None
     
     # ------------ MCMC loop --------------
-    for state in sampler.sample(pos, iterations=n_max, progress=True, skip_initial_state_check=True):
+    for _ in sampler.sample(initial_state=pos, iterations=n_max, progress=True, skip_initial_state_check=True):
         
         # Perform convergence check
         # Only after every i-th iteration AND enough steps to get a meaningful tau
         if sampler.iteration % iter_step == 0:
 
             # Update state
-            final_state = state 
+            #final_state = state 
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -683,5 +704,5 @@ def mcmc_runner(sampler,pos,ndim,n_max,iter_step=100):
 
             old_tau = tau
 
-    return sampler, autocorr, final_state
+    return sampler, autocorr
 

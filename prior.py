@@ -19,17 +19,21 @@ prior = {
         's': 0.14  # max possible value to always have m_br2 > m_br1
         }, 
     'alpha1': {
-        'm': 0.12, # modified value, IFMR C18 = 0.0873
+        'm': 0.088, # modified value, IFMR C18 = 0.0873
         's': 0.02   # C18 has 0.019; I tested 0.025 = almost max possible, 0.029, to keep alpha1 > 0, but maybe it's too wide prior, so reduced to 0.02
         }, 
     'alpha2': {
-        'm': 0.05, # modified value, IFMR C18 = 0.181
+        'm': 0.181, # modified value, IFMR C18 = 0.181
         's': 0.04   # 0.041 in C18; I tested 0.06 = approx. max possible to have alpha2 > 0 (no inversion of the slope sign), but now reduced to 0.04
         }, 
     'alpha3': {
-        'm': 0.1, # modified value, IFMR C18 = 0.0835
+        'm': 0.0835, # modified value, IFMR C18 = 0.0835
         's': 0.015 # 0.0144 in C18; I tested 0.025 = approx. max possible to have alpha3 > 0, now reduced to 0.015
         }, 
+    'b1':{
+        'm': 0.476,  # modified value, IFMR C18 = 0.476
+        's': 0.05   # large enough to have significant variation, C18 has 0.03
+        },
     'alpha_cool': {
         'm': 0.0, # Default is NO cooling slowdown
         's': 0.1  # Dispersion of the slowdown of cooling assumed to be 10%
@@ -74,6 +78,10 @@ prior = {
         'm': 0.1,  # SJ21, thick-disk SFR parameter
         's': 0.03  # range almost from 0 up to a const
         },
+    'tt2': {
+        'm': 4.0,  # SJ21, thick-disk SFR parameter
+        's': 0.5   # 
+        },  
     'gamma': {
         'm': 2.0,  # SJ21, thick-disk SFR parameter
         's': 0.6   # to have range almost from 0 + large shape variation
@@ -82,17 +90,21 @@ prior = {
         'm': 3.5,  # SJ21, thick-disk SFR parameter
         's': 1.0   # - // -
         },
+    'sigmat': {
+        'm': 4.9,  # SJ21, thick-disk SFR parameter
+        's': 1.0   # - // -
+        },
     'a0': {
         'm': 1.31, # SJ21, IFM slope for 0.08 Msun < m_ini < m0
-        's': 0.15  # as in SJ21, large enough to have significant slope variation
+        's': 0.25  # as in SJ21, large enough to have significant slope variation
         }, 
     'a1': {
         'm': 1.5,  # SJ21, IFM slope for m0 < m_ini < m1
-        's': 0.15  # - // -
+        's': 0.25  # - // -
         }, 
     'a2': {
         'm': 2.88, # SJ21, IFM slope for m1 < m_ini < 6 Msun
-        's': 0.15  # - // -
+        's': 0.25  # - // -
         }, 
     'm0': {
         'm': 0.49, # SJ21, IFM break point

@@ -2,6 +2,7 @@
 import os
 import sys
 import copy
+import emcee
 import pickle
 import warnings
 import numpy as np 
@@ -28,7 +29,7 @@ class MCMCLogger:
     Class to manage MCMC log files and saving of results.
     '''
 
-    def __init__(self,dir_out='./mcmc_output'):
+    def __init__(self,dir_out='./mcmc_output',backend_file='chains.h5'):
         r"""        
         Parameters:
         -----------
@@ -36,8 +37,33 @@ class MCMCLogger:
             Base output directory for MCMC results. By default './mcmc_output'. 
         """
         self.dir_out = dir_out
-        
+        self.backend_path = os.path.join(
+            dir_out,
+            backend_file
+        )
 
+        os.makedirs(self.dir_out, exist_ok=True)
+
+        
+    def initialize_backend(
+            self,
+            nwalkers,
+            ndim,
+            reset=False):
+
+        backend = emcee.backends.HDFBackend(
+            self.backend_path
+        )
+
+        if reset:
+            backend.reset(
+                nwalkers,
+                ndim
+            )
+
+        return backend
+    
+    
     def manage_logfile(self,save_log):
         r"""
         Manage the creation of a log file for MCMC runs.
@@ -176,7 +202,7 @@ class MCMCLogger:
             f.write('{:<25}'.format('N_max_iteration')+str(n_max)+'\n')
 
 
-    def get_run_stats(self,sampler,autocorr,iter_step=100,verbose=True):
+    def get_run_stats(self,sampler,autocorr,iter_step=100,verbose=True,reset_run=True):
         r"""
         Get and save MCMC run statistics: 
         acceptance fraction and integrated autocorrelation time.
@@ -213,7 +239,23 @@ class MCMCLogger:
                 print('Integrated autocorrelation time could not be estimated\n')
                 taum = np.nan
 
-        iter_index = np.arange(len(autocorr))*iter_step
+        if not reset_run: 
+            # Load previously saved autocorr file 
+            tau_file = os.path.join(self.dir_out,'autocorr_time.txt')
+            try:
+                iter_index_prev, autocorr_prev = tau_file[:,0], tau_file[:,1]
+            except: 
+                iter_index_prev, autocorr_prev = [], []
+
+            if iter_index_prev != []:
+                iter_index = iter_index_prev[-1] + np.arange(len(autocorr))*iter_step
+                iter_index = np.concatenate((iter_index_prev, iter_index))
+                autocorr = np.concatenate((autocorr_prev, autocorr))
+            else:
+                iter_index = np.arange(len(autocorr))*iter_step                
+        else:
+            iter_index = np.arange(len(autocorr))*iter_step
+
         np.savetxt(os.path.join(self.dir_out,'autocorr_time.txt'),\
                    np.stack((iter_index,autocorr,iter_index/50),axis=-1),
                    header = 'taum = ' + str(taum) + ', afm = ' + str(afm) +\
@@ -632,12 +674,11 @@ class ParHandler:
             Dictionary with keyword arguments.
         """
 
-        init_kwargs = {'params_mean':params_mean,'params_sigma':params_sigma,'labels':labels}
-        if mode_init == 'blob':
-            try:
-                init_kwargs['f_sig'] = blob_f_sig 
-            except:
-                pass
+        init_kwargs = {'params_mean':params_mean,
+                       'params_sigma':params_sigma,
+                       'labels':labels,
+                       'blob_f_sig':blob_f_sig
+                       }
         return init_kwargs
 
 
@@ -1729,6 +1770,22 @@ class IFMRHandler():
             {"range": [5.03, 7.6], "a": 0.17, "a_err": 0.02, "b": 0.0144, "b_err": 0.08},
         ]
 
+        # Miller+26 IFMR,  Full sample fit 1, Eqs. 6-9 
+        self.segments_miller = [
+            {"range": [0.84, 1.98], "a":0.16, "a_err":0.045,"b":0.394, "b_err":0.063},
+            {"range": [1.98, 2.33], "a":-0.155, "a_err":0.171,"b":1.015, "b_err":1.644},
+            {"range": [2.33, 3.98], "a":0.174, "a_err":0.026,"b":0.251, "b_err":0.183},
+            {"range": [3.98, 8.39], "a":0.075, "a_err":0.011,"b":0.644, "b_err":0.048}
+        ] 
+
+        # ElBadry+18 IFMR, err values are placeholders
+        self.segments_elbadry = [
+            {"range": [0.95, 2.75], "a":0.094, "a_err":0.03,"b":0.412, "b_err":0.063},
+            {"range": [2.75, 3.54], "a":0.175, "a_err":0.08,"b":0.191, "b_err":0.044},
+            {"range": [3.54, 5.21], "a":0.06, "a_err":0.002,"b":0.597, "b_err":0.183},
+            {"range": [5.21, 8.0], "a":0.163, "a_err":0.05,"b":0.066, "b_err":0.048}
+        ] 
+
         # Calculate segments' ranges in Mf for the inverted IFMR
         self.segments_cummings = self._calc_cummings_range_r_(
             extend_mf_limits=extend_mf_limits
@@ -1736,7 +1793,12 @@ class IFMRHandler():
         self.cunningham_segments = self._calc_cunningham_range_r_(
             extend_mf_limits=extend_mf_limits
             )
-
+        self.miller_segments = self._calc_miller_range_r_(
+            extend_mf_limits=extend_mf_limits
+            )
+        self.elbadry_segments = self._calc_elbadry_range_r_(
+            extend_mf_limits=extend_mf_limits
+            )
 
     def _calc_cummings_range_r_(self,extend_mf_limits=False):
         """Convert Cummings IFMR ranges from the final mass Mf 
@@ -1795,6 +1857,58 @@ class IFMRHandler():
 
         return segments
     
+    def _calc_miller_range_r_(self,extend_mf_limits=False):
+        """Convert Miller IFMR ranges from the final mass Mf 
+        to the initial mass Mini space.
+        Adds fields 'range_r' to self.segments_miller.
+        """
+        segments = self.segments_miller
+        for i, seg in enumerate(segments):
+            vals, sigmas, _ = self.miller(seg['range'])
+            if extend_mf_limits:
+                if i==0:
+                    val_upper = vals[1]
+                    val_lower = vals[0] - 3*sigmas[0]
+                    if val_lower < 0:
+                        val_lower = 0 
+                elif i==len(segments) - 1:
+                    val_lower = vals[0]
+                    val_upper = vals[1] + 3*sigmas[1]
+                else:
+                    val_lower, val_upper = vals
+            else:
+                val_lower, val_upper = vals
+            
+            seg['range_r'] = np.round([val_lower,val_upper],2)
+
+        return segments
+    
+    def _calc_elbadry_range_r_(self,extend_mf_limits=False):
+        """Convert ElBadry IFMR ranges from the final mass Mf 
+        to the initial mass Mini space.
+        Adds fields 'range_r' to self.segments_elbadry.
+        """
+        segments = self.segments_elbadry
+        for i, seg in enumerate(segments):
+            vals, sigmas, _ = self.elbadry(seg['range'])
+            if extend_mf_limits:
+                if i==0:
+                    val_upper = vals[1]
+                    val_lower = vals[0] - 3*sigmas[0]
+                    if val_lower < 0:
+                        val_lower = 0 
+                elif i==len(segments) - 1:
+                    val_lower = vals[0]
+                    val_upper = vals[1] + 3*sigmas[1]
+                else:
+                    val_lower, val_upper = vals
+            else:
+                val_lower, val_upper = vals
+            
+            seg['range_r'] = np.round([val_lower,val_upper],2)
+
+        return segments
+    
 
     def update_ifmr(self,calibration='padova',**kwargs):
         r""" 
@@ -1827,6 +1941,8 @@ class IFMRHandler():
                 self.segments_cummings[calibration][1]['a'] = kwargs[par]
             if par == 'alpha3':
                 self.segments_cummings[calibration][2]['a'] = kwargs[par]
+            if par == 'b1':
+                self.segments_cummings[calibration][0]['b'] = kwargs[par]
 
         # Update Mini ranges in case if Mf breakpoints were modified 
         for _, seg in enumerate(self.segments_cummings[calibration]):
@@ -1969,6 +2085,21 @@ class IFMRHandler():
         """
         segment = self.segments_cunningham
         return self._segmented_forward_(segment,Mini)
+
+    def miller(self, Mini):
+        """
+        Forward application of Miller+26 IFMR
+        """
+        segment = self.segments_miller
+        return self._segmented_forward_(segment,Mini)
+    
+
+    def elbadry(self, Mini):
+        """
+        Forward application of ElBadry+23 IFMR
+        """
+        segment = self.segments_elbadry
+        return self._segmented_forward_(segment,Mini)
     
 
     def cummings_r(self, Mf, calibration='padova'):
@@ -1984,6 +2115,22 @@ class IFMRHandler():
         Backward application of Cunningham+23 IFMR
         """
         segment = self.segments_cunningham
+        return self._segmented_backward_(segment,Mf)
+
+
+    def miller_r(self, Mf):
+        """
+        Backward application of Miller+26 IFMR
+        """
+        segment = self.segments_miller
+        return self._segmented_backward_(segment,Mf)
+    
+
+    def elbadry_r(self, Mf):
+        """
+        Backward application of ElBadry+23 IFMR
+        """
+        segment = self.segments_elbadry
         return self._segmented_backward_(segment,Mf)
 
 
@@ -3233,13 +3380,14 @@ class MSAgeHandler():
                        output.T, header='Mini[M_sun]\tAge[Gyr]')
             
 
-    def plot_age_ms(self, mets, dir_data='MS_lifetime', dir_out='MS_lifetime/plots'):
+    def plot_age_ms(self, mets, dir_data='MS_lifetime', dir_out='MS_lifetime/plots', 
+                    cmap='RdBu'):
         '''
         Visualization of the MS-lifetime data for a list of metallicities.
         '''
 
         fig, ax = plt.subplots(figsize=(8,6))
-        cmap = mpl.colormaps['RdBu']
+        cmap = mpl.colormaps[cmap]
 
         # Create a Normalize instance based on your metallicity values
         norm = mpl.colors.Normalize(vmin=-2.5, vmax=0.5)
@@ -3253,13 +3401,18 @@ class MSAgeHandler():
 
             data = np.loadtxt(os.path.join(dir_data,''.join(('fe'+str(met)+'.txt')))).T
             mass = data[0]
+            print(np.mean(np.diff(mass)),np.std(np.diff(mass)))
             age = data[1]
             x = np.log10(mass)
             y = np.log10(age)
 
             ax.loglog(10**x, 10**y, "x", ms=3, color=c)
-            ax.set_xlabel('M_initial [Msun]')
-            ax.set_ylabel('MS lifetime [Gyr]')
+            ax.set_xlabel(r'$\mathrm{M_{ini}, \ M_{\odot}}$')
+            ax.set_ylabel(r'$\mathrm{t_{MS}, \ Gyr}$')
+
+        bottom, top = ax.get_ylim()
+        ax.plot([1.18,1.18],[bottom, top], 'k--', lw=0.5, color='grey',label=r'$\mathrm{M_{br}}$')
+        ax.set_ylim(bottom,top)
 
         fig.subplots_adjust(left=0.15, right=0.95, top=0.95, bottom=0.15)
 
@@ -3267,7 +3420,7 @@ class MSAgeHandler():
         sm = mpl.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])  # required for older matplotlib
         cax = fig.colorbar(sm, ax=ax)
-        cax.set_label('[Fe/H]')
+        cax.set_label(r'$\mathrm{[Fe/H]}$')
 
         plt.savefig(os.path.join(dir_out,'MS_lifetimes_allFeH.png'))
         
