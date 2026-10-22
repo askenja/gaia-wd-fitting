@@ -21,7 +21,7 @@ from jjmodel.geometry import Volume
 from jjmodel.funcs import IMF, SFR
 from jjmodel.analysis import _extend_mag_
 from jjmodel.tools import convolve1d_gauss, convolve2d_gauss
-from jjmodel.populations import stellar_assemblies_r
+from jjmodel.populations import StellarAssemblies
 
 
 class MCMCLogger:
@@ -170,7 +170,7 @@ class MCMCLogger:
 
         # Save simulation card 
         with open(os.path.join(self.dir_out,'simulation_card.txt'),"w") as f:
-            f.write('{:<25}'.format('Main isochrones')+mode_iso+'\n')
+            f.write('{:<25}'.format('Isochrones')+','.join(mode_iso.values())+'\n')
             if radius:
                 f.write('{:<25}'.format('Radius_sphere [pc]')+str(radius)+'\n')
             else:
@@ -686,7 +686,7 @@ class HessConstructor:
     """ Class to generate Hess diagram from the model."""
 
     def __init__(self, p, a, mag_range, mag_step, 
-                 color_scheme=['G_EDR3','GRP_EDR3'],r_max=50, zmax=150):
+                 color_scheme=['G_Gaia_DR3','G_RP_Gaia_DR3'],r_max=50, zmax=150):
         r""" 
         Initialization. 
 
@@ -702,8 +702,8 @@ class HessConstructor:
         - mag_step: list of floats  
             Step size in xy-magnitudes for the Hess diagram.
         - color_scheme: list of strings
-            Gaia color to use. By default G-GRP, ['G_EDR3','GRP_EDR3'], 
-            but can b also ['GBP_EDR3','GRP_EDR3']
+            Gaia color to use. By default G-GRP, ['G_Gaia_DR3','G_RP_Gaia_DR3'], 
+            but can b also ['G_BP_Gaia_DR3','G_RP_Gaia_DR3']
         - r_max: float
             Maximum radius in pc for the spherical volume around the Sun,
             for which the Hess diagram is constructed. By default 50 pc. 
@@ -892,10 +892,22 @@ class HessConstructor:
             Hdp = inp_tabs['Hdp']
             sigp = self.p.sigp
             fpr0 = 1 - np.sum(Fp,axis=0) 
+            '''
+            print("jd_array:", jd_array.shape)
+            print("fpr0:", fpr0.shape)
+            print("Hd:", Hd.shape)
+            print("Fi_sliced:", Fi_sliced.shape)
+            print("volume:", volume.shape)
+            print("avr:", avr.shape)
+            print("exp_AVR:", exp_AVR.shape)
 
-            wd_total = (fpr0[jd_array] / (2 * Hd[jd_array])) * np.sum(exp_AVR * volume[None,:], axis=0)
+            print("fpr0[jd_array]:", fpr0[jd_array].shape)
+            print("Hd[jd_array]:", Hd[jd_array].shape)
+            print("integral:", np.sum(exp_AVR * volume[None, :], axis=0).shape)
+            ''';
+            wd_total = (fpr0[jd_array] / (2 * Hd[jd_array])) * np.sum(exp_AVR * volume[None,:], axis=1)
 
-            exp_sigp = np.exp(-Fi_sliced[None, :] / KM**2 / sigp**2)  # shape: (z, npeak)
+            exp_sigp = np.exp(-Fi_sliced[None, :] / KM**2 / sigp[:, None]**2)  # shape: (z, npeak)
             peak_int = np.sum(exp_sigp * volume[None, :], axis=1)     # (n_peak,)
             
             wd_total += np.sum((Fp[:, jd_array] / (2 * Hdp[:, None]) * peak_int[:, None]), axis=0)
@@ -1223,7 +1235,8 @@ class HessConstructor:
             mag_smooth,
             color_shift=0,
             vz_mag=None,
-            volume='sphere'
+            volume='sphere',
+            save_tabs=False
         ):
         r"""
         Total Hess diagram (thin/thick disk and halo) 
@@ -1275,7 +1288,7 @@ class HessConstructor:
             sum_Nz.extend(table['Nz'])
             mag = _extend_mag_(
                 mag,table,
-                ['G_EDR3',self.color_scheme[0],self.color_scheme[1]]       
+                ['G_Gaia_DR3',self.color_scheme[0],self.color_scheme[1]]       
                 )
 
         sum_Nz = np.array(sum_Nz)
@@ -1286,6 +1299,12 @@ class HessConstructor:
         hess = self.hess_from_data(color,magnitude,mag_range,mag_step,
                                    weights=sum_Nz,mag_smooth=mag_smooth)
         
+        if save_tabs:
+            for pop, table in pop_tabs.items():
+                pop_tabs[pop] = table.write(
+                    os.path.join(self.a.T['poptab'],
+                    ''.join(('SSP_R',str(self.p.Rsun),'_' + pop +'_nz.csv')))
+                    )
         return hess.T
     
 
@@ -1368,7 +1387,7 @@ class HessConstructor:
             sum_Nz.extend(table['Nz'])
             mag = _extend_mag_(
                 mag,table,
-                ['G_EDR3',self.color_scheme[0],self.color_scheme[1]]
+                ['G_Gaia_DR3',self.color_scheme[0],self.color_scheme[1]]
             )
 
         sum_Nz = np.array(sum_Nz)
@@ -2591,8 +2610,8 @@ class PopHandler:
         pop_tabs_split = {pop:{label:[] for label in labels} for pop in pops}
 
         for label in labels:
-            y = pop_tabs[label]['G_EDR3']
-            x = pop_tabs[label]['G_EDR3'] - pop_tabs[label]['GRP_EDR3']
+            y = pop_tabs[label]['G_Gaia_DR3']
+            x = pop_tabs[label]['G_Gaia_DR3'] - pop_tabs[label]['G_RP_Gaia_DR3']
 
             pop_tabs_split['wd'][label] = np.where(y > 6*x + 9.3)[0]
             pop_tabs_split['ums'][label] = np.where((y < 4.3) & (y > 35*x - 15))[0]
@@ -2692,7 +2711,7 @@ class PopHandler:
         ind_mag = {}
 
         for label in pop_tabs.keys():
-            gmag = pop_tabs[label]['G_EDR3']
+            gmag = pop_tabs[label]['G_Gaia_DR3']
             ind_mag[label] = np.array((gmag - mag_bins[0])//mag_step,dtype=int)
 
         return ind_mag
@@ -2801,7 +2820,7 @@ class PopHandler:
         return vz_mag   
 
 
-    def create_reference_pop_tabs(self, imf_ref, mode_iso, phot_cut=True, **kwargs):
+    def create_reference_pop_tabs(self, sa, imf_ref, phot_cut=True, **kwargs):
         r""" 
         Generate tables of the stellar assemblies for thin/thick disk and halo
         for the solar neighborhood. 
@@ -2810,14 +2829,11 @@ class PopHandler:
         -----------
         - imf_ref: jjmodel.IMF object
             IMF function. 
-        - mode_iso: string
-            Main isochrone set to use (all stars except WDs). 
-            'Padova', 'MIST', or 'BaSTI'.
         - phot_cut: bool
             If True, only stars with M_G < 25 and G - GRP < 1.65 are selected. 
             By default is True. 
         - kwargs: dict
-            Optional keyword arguments as for jjmodel.populations.stellar_assemblies_r(). 
+            Optional keyword arguments as for jjmodel.populations.StellarAssemblies.create_pops(). 
 
         Returns:
         --------
@@ -2825,25 +2841,23 @@ class PopHandler:
             Structure: {'d':table1, 't':table2, 'sh':table3}. 
         """
         # Create and save stellar assemblies
-        stellar_assemblies_r(
+        sa.create_pops(
             self.p.Rsun,
-            self.p,self.a,
             self.inp['AMRd0'],
             self.inp['AMRt'],
             self.inp['SFRd0'],
             self.inp['SFRt0'],
             self.p.sigmash,
             imf_ref.number_stars,
-            mode_iso,
-            3, # photometric system
             **kwargs
             )
 
         pop_tabs = {}
+        mode_label = '-'.join(sa.mode.values())
         for pop in ['d','t','sh']:
             pop_tabs[pop] = Table.read(
                 os.path.join(self.a.T['poptab'],
-                ''.join(('SSP_R',str(self.p.Rsun),'_' + pop +'_',mode_iso,'.csv')))
+                ''.join(('SSP_R',str(self.p.Rsun),'_' + pop +'_',mode_label,'.csv')))
                 )
             # this is now done with the method create_reference_columns()
             #pop_tabs[pop]['N_ref'] = np.copy(pop_tabs[pop]['N'])
@@ -2853,8 +2867,8 @@ class PopHandler:
 
             # remove odd sources
             if phot_cut:
-                mask = (pop_tabs[pop]['G_EDR3'] < 25) &\
-                    (pop_tabs[pop]['G_EDR3'] - pop_tabs[pop]['GRP_EDR3'] < 1.65)
+                mask = (pop_tabs[pop]['G_Gaia_DR3'] < 25) &\
+                    (pop_tabs[pop]['G_Gaia_DR3'] - pop_tabs[pop]['G_RP_Gaia_DR3'] < 1.65)
                 pop_tabs[pop] = pop_tabs[pop][mask]                
 
         return pop_tabs
@@ -2888,7 +2902,7 @@ class PopHandler:
         return pop_tabs_ref
 
 
-    def reset_columns(self,pop_tabs,colnames=['N', 'Mini', 'age', 'age_WD']):
+    def reset_columns(self,pop_tabs,colnames=['N', 'Mini', 'age', 't_cool']):
         r""" 
         Reset selected columns to their original state using their reference copies
         as created by selt.create_reference_columns(). 
@@ -2900,7 +2914,7 @@ class PopHandler:
             {'d':table1, 't':table2, 'sh':table3}. Must include reference columns. 
         - colnames: list of strings
             Names of the columns to reset. By default are:
-            ['N', 'Mini', 'age', 'age_WD'].
+            ['N', 'Mini', 'age', 't_cool'].
                  
         Returns:
         --------
@@ -2914,8 +2928,8 @@ class PopHandler:
         for col in colnames:
             for label in pop_tabs.keys():
                 if f'{col}_ref' not in pop_tabs[label].keys():
-                    if col=='age_WD':
-                        colnames_copy.remove('age_WD')
+                    if col=='t_cool':
+                        colnames_copy.remove('t_cool')
                     else:
                         sys.exit(f'Cannot reset columns. No reference column for {col} in [{label}] table!')
         # Reset
@@ -2940,7 +2954,7 @@ class PopHandler:
         - pop_tabs: dict of pandas.DataFrame objects or Astropy tables
             Stellar assemblies tables for thin/thick disk and halo:
             {'d':table1, 't':table2, 'sh':table3}. Must also include reference columns
-            for 'N', 'Mini', 'age', 'age_WD' (the latter can be skipped if WDs are not modeled). 
+            for 'N', 'Mini', 'age', 't_cool' (the latter can be skipped if WDs are not modeled). 
         - kwargs: dict
             Optional keyword arguments. Should include:
             - SFR_ref: dict
@@ -2959,7 +2973,7 @@ class PopHandler:
         # But for testing, it was useful
         #pop_tabs = copy.deepcopy(pop_tabs) # do not uncomment if you use MCMC!
 
-        # Just in case, reset columns ['N', 'Mini', 'age', 'age_WD'] 
+        # Just in case, reset columns ['N', 'Mini', 'age', 't_cool'] 
         # to their original versions corresponding to the model predictions 
         # for the reference IMR, SFR, IFMR.  
         pop_tabs = self.reset_columns(pop_tabs)
@@ -2995,7 +3009,7 @@ class PopHandler:
             if any(x in opt_classes for x in ['ifmr', 'f_dadb', 'dcool']):
                 ind_da, ind_db = ind_wd[label]
                 all_wd_idx = np.concatenate(ind_wd[label])                 # DA and DB position indices
-                age_wd_ref_arr = pop_tabs[label]['age_WD_ref'][all_wd_idx] # WD cooling age
+                age_wd_ref_arr = pop_tabs[label]['t_cool_ref'][all_wd_idx] # WD cooling age
                 age_tot_ref_arr = pop_tabs[label]['age'][all_wd_idx]       # WD total age 
 
             # -------- IFMR: vectorize if present ----------

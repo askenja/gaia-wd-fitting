@@ -9,6 +9,8 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data and output folders 
+/archiv
+/materials
 /completeness
 /data
 /from_Akash
