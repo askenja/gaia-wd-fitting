@@ -1844,7 +1844,7 @@ class IFMRHandler():
                 else:
                     val_lower, val_upper = vals
                 
-                seg['range_r'] = np.round([val_lower,val_upper],2)
+                seg['range_r'] = np.round([val_lower,val_upper],5)
                 segments_extended[cal].append(seg)
 
         return segments_extended
@@ -3055,6 +3055,7 @@ class PopHandler:
                 alpha_cool = opt_params['dcool']['alpha_cool']
                 # New total WD ages
                 age_tot_wd = age_tot_wd + alpha_cool * age_wd_ref_arr
+                pop_tabs[label]['age'][all_wd_idx] = age_tot_wd
 
             # -------- IFMR and dcool (remaining part) correction ----------
             if (('ifmr' in opt_classes) or ('dcool' in opt_classes)) and (label != 'sh'):
