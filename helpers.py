@@ -23,6 +23,15 @@ from jjmodel.analysis import _extend_mag_
 from jjmodel.tools import convolve1d_gauss, convolve2d_gauss
 from jjmodel.populations import StellarAssemblies
 
+import matplotlib.pylab as pylab
+
+params = {'legend.fontsize': 11,
+         'axes.labelsize': 15,
+         'axes.titlesize':15,
+         'xtick.labelsize':12,
+         'ytick.labelsize':12}
+pylab.rcParams.update(params)
+
 
 class MCMCLogger:
     '''
@@ -3401,7 +3410,7 @@ class MSAgeHandler():
         Visualization of the MS-lifetime data for a list of metallicities.
         '''
 
-        fig, ax = plt.subplots(figsize=(8,6))
+        fig, ax = plt.subplots(figsize=(7,5.5))
         cmap = mpl.colormaps[cmap]
 
         # Create a Normalize instance based on your metallicity values
@@ -3422,7 +3431,7 @@ class MSAgeHandler():
             y = np.log10(age)
 
             ax.loglog(10**x, 10**y, "x", ms=3, color=c)
-            ax.set_xlabel(r'$\mathrm{M_{ini}, \ M_{\odot}}$')
+            ax.set_xlabel(r'$\mathrm{M_{ini}, \ M_{\odot}}$',labelpad=10)
             ax.set_ylabel(r'$\mathrm{t_{MS}, \ Gyr}$')
 
         bottom, top = ax.get_ylim()
@@ -3435,7 +3444,7 @@ class MSAgeHandler():
         sm = mpl.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])  # required for older matplotlib
         cax = fig.colorbar(sm, ax=ax)
-        cax.set_label(r'$\mathrm{[Fe/H]}$')
+        cax.set_label(r'$\mathrm{[Fe/H]}$',labelpad=10)
 
         plt.savefig(os.path.join(dir_out,'MS_lifetimes_allFeH.png'))
         
